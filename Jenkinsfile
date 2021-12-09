@@ -14,7 +14,7 @@ properties([
 
 node {
     try {
-        pipeline("${JENKINS_VERSION}", "${JENKINS_UID}", "${JENKINS_GID}", "${COMPOSE_VERSION}")
+        pipeline()
     }
     catch(e) {
         throw e
@@ -24,18 +24,18 @@ node {
     }
 }
 
-def pipeline(jenkinsVersion, jenkinsUid, jenkinsGid, composeVersion) {
+def pipeline() {
     stage('checkout') {
         checkout scm
     }
 
     stage('image build') {
         DOCKER_IMAGE = docker.build(
-            "${DOCKER_REGISTRY}/${DOCKER_REPO}:${jenkinsVersion}",
-            "--build-arg JENKINS_VERSION=${jenkinsVersion} " +
-            "--build-arg JENKINS_UID=${jenkinsUid} " +
-            "--build-arg JENKINS_GID=${jenkinsGid} " +
-            "--build-arg COMPOSE_VERSION=${composeVersion} " +
+            "${DOCKER_REGISTRY}/${DOCKER_REPO}:${JENKINS_VERSION}",
+            "--build-arg JENKINS_VERSION=${JENKINS_VERSION} " +
+            "--build-arg JENKINS_UID=${JENKINS_UID} " +
+            "--build-arg JENKINS_GID=${JENKINS_GID} " +
+            "--build-arg COMPOSE_VERSION=${COMPOSE_VERSION} " +
             "--no-cache ${DOCKER_ARGS} ."
         )
     }
