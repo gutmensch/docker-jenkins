@@ -33,7 +33,7 @@ def pipeline() {
 
     stage('image build') {
         DOCKER_IMAGE = docker.build(
-            "${DOCKER_REGISTRY}/${DOCKER_REPO}:${JENKINS_VERSION}",
+            "${DOCKER_REGISTRY}/${DOCKER_REPO}:${JENKINS_VERSION} ",
             "--build-arg JENKINS_VERSION=${JENKINS_VERSION} " +
             "--build-arg JENKINS_UID=${JENKINS_UID} " +
             "--build-arg JENKINS_GID=${JENKINS_GID} " +
