@@ -1,16 +1,19 @@
-DOCKER_IMAGE = ''
-DOCKER_ARGS = '--network=services_default'
-DOCKER_REGISTRY = 'registry.n-os.org:5000'
-DOCKER_REPO = "${JOB_BASE_NAME}"
+import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
+import java.text.SimpleDateFormat
+
+
+DOCKER_IMAGE_NAME = ''
+DOCKER_IMAGE      = ''
+DOCKER_ARGS       = '--network=services_default'
+DOCKER_REGISTRY   = 'registry.n-os.org:5000'
+
 
 properties([
     parameters([
-        string(defaultValue: '2.324', name: 'JENKINS_VERSION', description: "Jenkins version upstream docker image"),
-        string(defaultValue: '1010', name: 'JENKINS_UID', description: "Jenkins user UID in image"),
-        string(defaultValue: '120', name: 'JENKINS_GID', description: "Jenkins user GID in image"),
-        string(defaultValue: '2.2.2', name: 'COMPOSE_VERSION', description: "Docker Compose version for image")
+        booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Do you want to run the build with tests?')
     ])
 ])
+
 
 node {
     try {
@@ -21,40 +24,91 @@ node {
         throw e
     }
     finally {
-        cleanup()        
+        cleanup()
     }
 }
 
+
+/*
+  ******************************************************************
+
+  standard functions
+  these functions below implement the standard docker image pipeline
+
+  ******************************************************************
+*/
 def pipeline() {
-    stage('checkout') {
+
+    stage('checkout git') {
         checkout scm
         setBuildStatus('In progress...', 'PENDING')
     }
 
-    stage('image build') {
-        DOCKER_IMAGE = docker.build(
-            "${DOCKER_REGISTRY}/${DOCKER_REPO}:${JENKINS_VERSION} ",
-            "--build-arg JENKINS_VERSION=${JENKINS_VERSION} " +
-            "--build-arg JENKINS_UID=${JENKINS_UID} " +
-            "--build-arg JENKINS_GID=${JENKINS_GID} " +
-            "--build-arg COMPOSE_VERSION=${COMPOSE_VERSION} " +
-            "--no-cache ${DOCKER_ARGS} ."
-        )
+    // https://docs.cloudbees.com/docs/admin-resources/latest/plugins/docker-workflow
+    stage('build image') {
+        DOCKER_IMAGE_NAME = "${DOCKER_REGISTRY}/${getDockerImage()}:${getDockerTag()}"
+        DOCKER_IMAGE = docker.build(DOCKER_IMAGE_NAME, "--no-cache ${DOCKER_ARGS} .")
+    }
+
+    stage('run tests') {
+        if (fileExists('./test/run.sh') && !params.SKIP_TESTS) {
+            DOCKER_IMAGE.inside("${DOCKER_ARGS} --entrypoint=") {
+                sh 'bash /usr/build/test/run.sh'
+            }
+        }
+        else {
+            Utils.markStageSkippedForConditional('run tests')
+        }
     }
 
     stage('push image') {
-        def shortHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
-        DOCKER_IMAGE.push()
-        DOCKER_IMAGE.push(shortHash)
+        if (BRANCH_NAME == 'master') {
+            DOCKER_IMAGE.push()
+        }
+        else {
+            Utils.markStageSkippedForConditional('push image')
+        }
+    }
+
+    stage('delete image') {
+        if (BRANCH_NAME == 'master') {
+            Utils.markStageSkippedForConditional('delete image')
+        }
+        else {
+            deleteDockerImage(DOCKER_IMAGE_NAME)
+        }
         setBuildStatus('Success', 'SUCCESS')
     }
 }
 
+void deleteDockerImage(image) {
+    sh(script: "docker rmi -f ${image}")
+}
 
-// --- standard helper functions ---
-def cleanup() {
+void cleanup() {
     stage('schedule cleanup') {
-        build job: '../Maintenance/dangling-container-cleanup', wait: false
+        build job: '/maintenance/starter', wait: false
+    }
+}
+
+String getDockerImage() {
+    return sh(script: "echo '${JOB_NAME}' | awk -F/ '{print \$(NF-1)}'", returnStdout: true).trim()
+}
+
+String getDockerTag() {
+    def shortHash = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+    def date = new Date()
+    def sdf = new SimpleDateFormat("yyyyMMddHHmmss")
+    // semver in TAG_ID file or reference to ARG in Dockerfile
+    if (!fileExists('./TAG_ID')) {
+        return "${sdf.format(date)}.${shortHash}.b${BUILD_ID}"
+    }
+    def tagId = sh(script: 'cat ./TAG_ID', returnStdout: true).trim()
+    if (tagId ==~ /^[A-Z_]+$/) {
+        return sh(script: "awk -F= '/ARG ${tagId}=/{print \$2}' Dockerfile", returnStdout: true).trim()
+    }
+    else {
+        return tagId
     }
 }
 
