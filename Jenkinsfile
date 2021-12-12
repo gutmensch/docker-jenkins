@@ -92,7 +92,7 @@ void cleanup() {
 }
 
 String getDockerImage() {
-    return sh(script: "echo '${JOB_NAME}' | awk -F/ '{print \$(NF-1)}'", returnStdout: true).trim()
+    return sh(script: "echo '${JOB_NAME}' | awk -F/ '{print \$(NF-1)}' | sed 's%docker-%%'", returnStdout: true).trim()
 }
 
 String getDockerTag() {
