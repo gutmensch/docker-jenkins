@@ -1,9 +1,9 @@
-ARG JENKINS_VERSION=2.334
+ARG JENKINS_VERSION=2.335
 
 FROM jenkins/jenkins:$JENKINS_VERSION
 
-ARG JENKINS_UID=2010
-ARG JENKINS_GID=2010
+ARG IMAGE_UID=2010
+ARG IMAGE_GID=2010
 # corresponds with ubuntu host installation
 ARG DOCKER_GID=120
 ARG COMPOSE_VERSION=2.2.3
@@ -21,11 +21,11 @@ RUN apt-get -y update && \
   curl -sL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose && \
   chmod +x /usr/local/bin/docker-compose && \
   ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose && \
-  usermod -u $JENKINS_UID jenkins && \
-  groupmod -g $JENKINS_GID jenkins && \
+  usermod -u $IMAGE_UID jenkins && \
+  groupmod -g $IMAGE_GID jenkins && \
   groupadd -g $DOCKER_GID docker && \
   usermod -aG docker jenkins && \
-  chown -h -R $JENKINS_UID:$JENKINS_GID /var/jenkins_home && \
+  chown -h -R $IMAGE_UID:$IMAGE_GID /var/jenkins_home && \
   rm -rvf /var/lib/apt/lists/*
 
-USER jenkins
+USER $IMAGE_UID
